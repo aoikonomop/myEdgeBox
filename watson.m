@@ -19,7 +19,7 @@ dircontents = dir(strcat(base_path, '*.jpg'));
 min_edge_size = 200;
 min_confidence = 0.1;
 min_aspect_ratios = [0.6 0.8 1.0];
-alphas = [0.65 0.75];
+alphas = [0.65];
 betas = [.2 .4 .65 .75];
 
 for a = 1:length(alphas)
@@ -33,10 +33,10 @@ for a = 1:length(alphas)
             detections = cell(length(dircontents), 1);
 
             n = 0;
-            for i = 1:10%length(dircontents)
+            for i = 1:length(dircontents)
                 n = n + 1; 
                 if mod(i, 50) == 1
-                   fprintf('Processed image %d of %d (alpha = %f, beta = %f, r = %f\n',...
+                   fprintf('Processed image %d of %d (alpha = %f, beta = %f, r = %f)\n',...
                        i, length(dircontents), opts.alpha, opts.beta, min_aspect_ratios(r));
                 end
 
