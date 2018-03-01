@@ -19,52 +19,63 @@ dircontents = dir(strcat(base_path, '*.jpg'));
 min_edge_size = 200;
 min_confidence = 0.1;
 min_aspect_ratios = [0.6 0.8 1.0];
-alphas = [0.65];
+alphas = [0.65 0.75];
 betas = [.2 .4 .65 .75];
 
 for a = 1:length(alphas)
     opts.alpha = alphas(a);
     for b = 1:length(betas)
         opts.beta = betas(b);
-        for r = 1:length(min_aspect_ratios)
+        
+        image_filenames = cell(length(dircontents), 1);
+        ground_truths = cell(length(dircontents), 1);
+        detections = cell(length(dircontents), 1);
 
-            image_filenames = cell(length(dircontents), 1);
-            ground_truths = cell(length(dircontents), 1);
-            detections = cell(length(dircontents), 1);
-
-            n = 0;
-            for i = 1:length(dircontents)
-                n = n + 1; 
-                if mod(i, 50) == 1
-                   fprintf('Processed image %d of %d (alpha = %f, beta = %f, r = %f)\n',...
-                       i, length(dircontents), opts.alpha, opts.beta, min_aspect_ratios(r));
-                end
-
-                image_filename = dircontents(i).name;
-                detected_boxes = edgeBoxes(strcat(base_path,image_filename), model, opts);
-
-                base_name = strsplit(dircontents(i).name, '.');
-                base_name = base_name{1};
-                gt_obj = load_json(strcat(base_path, base_name, '.json'));
-                gt_boxes = get_bbs_from_json_obj(gt_obj);
-
-                image_filenames{i, 1} = image_filename;
-                ground_truths{i, 1} = gt_boxes;
-                detected_boxes = filter_edge_boxes(detected_boxes, min_edge_size, ...
-                                                   min_confidence, min_aspect_ratios(r));
-                detections{i, 1} = detected_boxes;
-
+        n = 0;
+        for i = 1:length(dircontents)
+            n = n + 1; 
+            if mod(i, 50) == 1
+               fprintf('Processed image %d of %d (alpha = %f, beta = %f)\n',...
+                   i, length(dircontents), opts.alpha, opts.beta);
             end
 
+            image_filename = dircontents(i).name;
+            detected_boxes = edgeBoxes(strcat(base_path,image_filename), model, opts);
+
+            base_name = strsplit(dircontents(i).name, '.');
+            base_name = base_name{1};
+            gt_obj = load_json(strcat(base_path, base_name, '.json'));
+            gt_boxes = get_bbs_from_json_obj(gt_obj);
+
+            image_filenames{i, 1} = image_filename;
+            ground_truths{i, 1} = gt_boxes;
+            detections{i, 1} = detected_boxes;
+
+        end
+        
+        data = struct('images', image_filenames(1:n), 'gt', ground_truths(1:n), ...
+            'bbs', detections(1:n), 'n', length(dircontents));
+        save_filename = strcat('data_alpha', num2str(opts.alpha), '_beta', num2str(opts.beta), '.mat');
+        save(strcat(save_path, save_filename), 'data');
+        
+        for r = 1:length(min_aspect_ratios)
+            filtered_detections = cell(length(dircontents), 1);
+            for i = 1:length(detections)
+                filtered_detections{i, 1} = filter_edge_boxes(detections{i, 1}, min_edge_size, ...
+                                                              min_confidence, min_aspect_ratios(r));
+            end
             data = struct('images', image_filenames(1:n), 'gt', ground_truths(1:n), ...
-                'bbs', detections(1:n), 'n', length(dircontents));
+            'bbs', filtered_detections(1:n), 'n', length(dircontents));
             save_filename = strcat('data_alpha', num2str(opts.alpha), '_beta', num2str(opts.beta), ...
                                    '_r', num2str(min_aspect_ratios(r)), '.mat');
             save(strcat(save_path, save_filename), 'data');
             clear data
         end
+
+        
     end
 end
+
 %% Do some visualization of the result
 
 % close all;
