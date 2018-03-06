@@ -16,11 +16,11 @@ save_path = 'C:\Users\antonios.o\Documents\Projects\EdgeBoxes\';
 dircontents = dir(strcat(base_path, '*.jpg'));
 
 % Set parameters
-min_edge_size = 200;
-min_confidence = 0.1;
-min_aspect_ratios = [0.6 0.8 1.0];
-alphas = [0.65 0.75];
-betas = [.2 .4 .65 .75];
+max_edge_size = 200;
+min_confidence = 0.01;
+max_aspect_ratios = [0.6 0.8 1.0];
+alphas = [0.65];
+betas = [.2 .4 0.65 0.75];
 
 for a = 1:length(alphas)
     opts.alpha = alphas(a);
@@ -28,8 +28,9 @@ for a = 1:length(alphas)
         opts.beta = betas(b);
         
         image_filenames = cell(length(dircontents), 1);
-        ground_truths = cell(length(dircontents), 1);
         detections = cell(length(dircontents), 1);
+        ground_truths = cell(length(dircontents), 1);
+        projection_matrices = cell(length(dircontents), 1);
 
         n = 0;
         for i = 1:length(dircontents)
@@ -43,35 +44,47 @@ for a = 1:length(alphas)
             detected_boxes = edgeBoxes(strcat(base_path,image_filename), model, opts);
 
             base_name = strsplit(dircontents(i).name, '.');
-            base_name = base_name{1};
-            gt_obj = load_json(strcat(base_path, base_name, '.json'));
-            gt_boxes = get_bbs_from_json_obj(gt_obj);
+            [gt_boxes, projection_matrix] = ...
+                get_data_from_json(strcat(base_path, base_name{1}, '.json'));
 
             image_filenames{i, 1} = image_filename;
-            ground_truths{i, 1} = gt_boxes;
             detections{i, 1} = detected_boxes;
+            ground_truths{i, 1} = gt_boxes;
+            projection_matrices{i, 1} = projection_matrix;
 
         end
         
-        data = struct('images', image_filenames(1:n), 'gt', ground_truths(1:n), ...
-            'bbs', detections(1:n), 'n', length(dircontents));
-        save_filename = strcat('data_alpha', num2str(opts.alpha), '_beta', num2str(opts.beta), '.mat');
+        data = struct('image', image_filenames(1:n), ...
+                      'gt', ground_truths(1:n), ...
+                      'bbs', detections(1:n), ...
+                      'projection_matrix', projection_matrices(1:n), ...
+                      'n', length(dircontents));
+                  
+        save_filename = strcat('data_alpha', num2str(opts.alpha), ...
+                               '_beta', num2str(opts.beta), '.mat');
         save(strcat(save_path, save_filename), 'data');
         
-        for r = 1:length(min_aspect_ratios)
+        for r = 1:length(max_aspect_ratios)
             filtered_detections = cell(length(dircontents), 1);
             for i = 1:length(detections)
-                filtered_detections{i, 1} = filter_edge_boxes(detections{i, 1}, min_edge_size, ...
-                                                              min_confidence, min_aspect_ratios(r));
+                filtered_detections{i, 1} = filter_edge_boxes(detections{i, 1}, max_edge_size, ...
+                                                              min_confidence, max_aspect_ratios(r));
             end
-            data = struct('images', image_filenames(1:n), 'gt', ground_truths(1:n), ...
-            'bbs', filtered_detections(1:n), 'n', length(dircontents));
-            save_filename = strcat('data_alpha', num2str(opts.alpha), '_beta', num2str(opts.beta), ...
-                                   '_r', num2str(min_aspect_ratios(r)), '.mat');
+            
+            data = struct('image', image_filenames(1:n), ...
+                          'gt', ground_truths(1:n), ...
+                          'bbs', filtered_detections(1:n), ...
+                          'projection_matrix', projection_matrices(1:n), ...
+                          'n', length(dircontents));
+                      
+            save_filename = strcat('data_alpha', num2str(opts.alpha), ...
+                                   '_beta', num2str(opts.beta), ...
+                                   '_r', num2str(max_aspect_ratios(r)), ...
+                                   '_conf_th', num2str(min_confidence), ...
+                                   '_edge_size', num2str(max_edge_size), '.mat');
             save(strcat(save_path, save_filename), 'data');
             clear data
         end
-
         
     end
 end
